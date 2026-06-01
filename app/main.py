@@ -176,7 +176,10 @@ async def read_root(request: Request):
     'request: Request' is required by Jinja2 templates — it contains
     information about the HTTP request (headers, client IP, etc.)
     """
-    return templates.TemplateResponse("index.html", {"request": request})
+    return templates.TemplateResponse(
+        request=request,
+        name="index.html"
+    )
 
 
 # --- ENDPOINT 2: Health Check ---
