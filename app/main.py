@@ -70,6 +70,8 @@ app.add_middleware(
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
 # Set up Jinja2 templates — this tells FastAPI where HTML files are
+from fastapi.templating import Jinja2Templates
+
 templates = Jinja2Templates(directory="templates")
 
 # ============================================================
