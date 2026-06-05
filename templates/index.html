@@ -1,263 +1,243 @@
 <!DOCTYPE html>
 <!--
-  templates/index.html — The main web page users see
-  ===================================================
-  This is a Jinja2 template. FastAPI renders this file and sends it to the browser.
-  
-  Structure:
-    <head>   → metadata, fonts, links to CSS
-    <body>   → the visible content
-             → links to JavaScript at the bottom
+  templates/index.html
+  ====================
+  WHAT CHANGED FROM OLD VERSION:
+    Removed  : Area, Bedrooms, Bathrooms, Stories, Parking  (5 text inputs)
+    Added    : Location (dropdown), Size (number input),
+               BHK (dropdown), Floors (dropdown),
+               Furnishing (dropdown)
+
+    The Location dropdown is populated DYNAMICALLY by script.js
+    calling GET /locations — no locations are hardcoded here.
+
+    Result section now shows Indian Rupee symbol (₹) and
+    also displays Location + House Details breakdown.
 -->
 <html lang="en">
 <head>
-    <meta charset="UTF-8" />
-    <!-- viewport: makes the page look good on phones and tablets -->
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>House Price Prediction System</title>
-    
-    <!-- Load Google Fonts — Playfair Display for headings, DM Sans for body text -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
-    
-    <!-- Link to our CSS file (served from /static/style.css) -->
-    <link rel="stylesheet" href="/static/style.css" />
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>House Price Prediction — Indore</title>
+
+  <!-- Google Fonts: Playfair Display (headings) + DM Sans (body) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;1,700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+
+  <!-- Our stylesheet -->
+  <link rel="stylesheet" href="/static/style.css" />
 </head>
 <body>
 
-    <!-- ============================================================
-         BACKGROUND DECORATIVE ELEMENTS
-         These create the visual atmosphere (the floating circles)
-    ============================================================ -->
-    <div class="bg-orb bg-orb--1"></div>
-    <div class="bg-orb bg-orb--2"></div>
-    <div class="bg-orb bg-orb--3"></div>
+  <!-- Background ambient orbs (CSS-animated, purely decorative) -->
+  <div class="bg-orb bg-orb--1"></div>
+  <div class="bg-orb bg-orb--2"></div>
+  <div class="bg-orb bg-orb--3"></div>
 
-    <!-- ============================================================
-         MAIN LAYOUT WRAPPER
-         Centers everything on the page
-    ============================================================ -->
-    <main class="page-wrapper">
+  <main class="page-wrapper">
 
-        <!-- ============================================================
-             HERO HEADER
-             The title section at the top
-        ============================================================ -->
-        <header class="hero">
-            <div class="hero__badge">ML-POWERED ESTIMATOR</div>
-            <h1 class="hero__title">House Price<br><em>Prediction</em></h1>
-            <p class="hero__subtitle">
-                Enter property details below and our Random Forest model
-                will estimate the market value instantly.
-            </p>
-        </header>
+    <!-- ── Hero header ─────────────────────────────────── -->
+    <header class="hero">
+      <div class="hero__badge">INDORE · ML-POWERED ESTIMATOR</div>
+      <h1 class="hero__title">House Price<br><em>Prediction</em></h1>
+      <p class="hero__subtitle">
+        Select your locality and property details.
+        Our Random Forest model will estimate the market value instantly.
+      </p>
+    </header>
 
-        <!-- ============================================================
-             MAIN CARD
-             The white card containing the form and result
-        ============================================================ -->
-        <div class="card">
+    <!-- ── Main card ───────────────────────────────────── -->
+    <div class="card">
 
-            <!-- Card header -->
-            <div class="card__header">
-                <span class="card__icon">🏡</span>
-                <div>
-                    <h2 class="card__title">Property Details</h2>
-                    <p class="card__desc">Fill in all fields to get an accurate estimate</p>
-                </div>
-            </div>
+      <div class="card__header">
+        <span class="card__icon">🏡</span>
+        <div>
+          <h2 class="card__title">Property Details</h2>
+          <p class="card__desc">Fill all fields for an accurate estimate</p>
+        </div>
+      </div>
 
-            <!-- ============================================================
-                 INPUT FORM
-                 Contains 5 fields for house features
-            ============================================================ -->
-            <!-- 
-                NOTE: We use <div> not <form> here to avoid page reload on submit.
-                The button has id="predict-btn" so JavaScript can find it.
-            -->
-            <div class="form-grid">
+      <!-- ── Form grid ─────────────────────────────────── -->
+      <!--
+        We use a <div> (not a <form>) so the page does NOT reload
+        when the user clicks Predict. JavaScript handles submission.
+      -->
+      <div class="form-grid">
 
-                <!-- Input 1: Area -->
-                <div class="field">
-                    <label class="field__label" for="area">
-                        <span class="field__icon">📐</span>
-                        Area <span class="field__unit">(sq ft)</span>
-                    </label>
-                    <!-- 
-                        id="area" — JavaScript uses this to get the value
-                        type="number" — browser only allows numbers
-                        placeholder — hint text shown when field is empty
-                        min="1" — HTML validation: must be at least 1
-                    -->
-                    <input
-                        class="field__input"
-                        type="number"
-                        id="area"
-                        placeholder="e.g. 7420"
-                        min="1"
-                        step="1"
-                    />
-                    <span class="field__hint">Total living area in square feet</span>
-                </div>
+        <!-- FIELD 1: Location — dropdown populated by JavaScript -->
+        <div class="field field--full">
+          <!--
+            field--full makes this field span both columns of the grid
+            because the location names can be long.
+          -->
+          <label class="field__label" for="location">
+            <span class="field__icon">📍</span>
+            Location
+          </label>
+          <!--
+            id="location" — script.js references this to populate options
+            and to read the selected value.
+            The <option> tags inside are added dynamically by JS.
+          -->
+          <select class="field__input field__select" id="location">
+            <option value="" disabled selected>Loading localities…</option>
+          </select>
+          <span class="field__hint">Indore locality / area name</span>
+        </div>
 
-                <!-- Input 2: Bedrooms -->
-                <div class="field">
-                    <label class="field__label" for="bedrooms">
-                        <span class="field__icon">🛏️</span>
-                        Bedrooms
-                    </label>
-                    <input
-                        class="field__input"
-                        type="number"
-                        id="bedrooms"
-                        placeholder="e.g. 4"
-                        min="1"
-                        max="20"
-                        step="1"
-                    />
-                    <span class="field__hint">Number of bedrooms (1–20)</span>
-                </div>
+        <!-- FIELD 2: Size (sq ft) — numeric input -->
+        <div class="field">
+          <label class="field__label" for="size">
+            <span class="field__icon">📐</span>
+            Size <span class="field__unit">(sq ft)</span>
+          </label>
+          <input
+            class="field__input"
+            type="number"
+            id="size"
+            placeholder="e.g. 1200"
+            min="100"
+            max="10000"
+            step="50"
+          />
+          <span class="field__hint">Allowed: 500 / 600 / 750 / 1000 / 1200 / 1500</span>
+        </div>
 
-                <!-- Input 3: Bathrooms -->
-                <div class="field">
-                    <label class="field__label" for="bathrooms">
-                        <span class="field__icon">🚿</span>
-                        Bathrooms
-                    </label>
-                    <input
-                        class="field__input"
-                        type="number"
-                        id="bathrooms"
-                        placeholder="e.g. 2"
-                        min="1"
-                        max="10"
-                        step="1"
-                    />
-                    <span class="field__hint">Number of bathrooms (1–10)</span>
-                </div>
+        <!-- FIELD 3: BHK — dropdown -->
+        <div class="field">
+          <label class="field__label" for="bhk">
+            <span class="field__icon">🛏️</span>
+            BHK
+          </label>
+          <select class="field__input field__select" id="bhk">
+            <option value="" disabled selected>Select BHK</option>
+            <option value="1">1 BHK</option>
+            <option value="2">2 BHK</option>
+            <option value="3">3 BHK</option>
+          </select>
+          <span class="field__hint">Bedrooms, Hall &amp; Kitchen</span>
+        </div>
 
-                <!-- Input 4: Stories -->
-                <div class="field">
-                    <label class="field__label" for="stories">
-                        <span class="field__icon">🏢</span>
-                        Stories
-                    </label>
-                    <input
-                        class="field__input"
-                        type="number"
-                        id="stories"
-                        placeholder="e.g. 3"
-                        min="1"
-                        max="10"
-                        step="1"
-                    />
-                    <span class="field__hint">Number of floors (1–10)</span>
-                </div>
+        <!-- FIELD 4: Floors — dropdown (Ground / 1 / 2 / 3 / 4) -->
+        <div class="field">
+          <label class="field__label" for="floors">
+            <span class="field__icon">🏢</span>
+            Floors
+          </label>
+          <!--
+            Values match exactly what the model was trained on:
+            "Ground", "1", "2", "3", "4"
+            These are STRINGS — "Ground" is not a number.
+          -->
+          <select class="field__input field__select" id="floors">
+            <option value="" disabled selected>Select floors</option>
+            <option value="Ground">Ground floor only</option>
+            <option value="1">1 floor above ground (G+1)</option>
+            <option value="2">2 floors above ground (G+2)</option>
+            <option value="3">3 floors above ground (G+3)</option>
+            <option value="4">4 floors above ground (G+4)</option>
+          </select>
+          <span class="field__hint">Total floors built</span>
+        </div>
 
-                <!-- Input 5: Parking -->
-                <div class="field">
-                    <label class="field__label" for="parking">
-                        <span class="field__icon">🅿️</span>
-                        Parking Spots
-                    </label>
-                    <input
-                        class="field__input"
-                        type="number"
-                        id="parking"
-                        placeholder="e.g. 2"
-                        min="0"
-                        max="10"
-                        step="1"
-                    />
-                    <span class="field__hint">Number of parking spaces (0–10)</span>
-                </div>
+        <!-- FIELD 5: Furnishing — dropdown -->
+        <div class="field">
+          <label class="field__label" for="furnishing">
+            <span class="field__icon">🛋️</span>
+            Furnishing
+          </label>
+          <select class="field__input field__select" id="furnishing">
+            <option value="" disabled selected>Select furnishing</option>
+            <option value="Unfurnished">Unfurnished</option>
+            <option value="Semi Furnished">Semi Furnished</option>
+            <option value="Furnished">Furnished</option>
+          </select>
+          <span class="field__hint">Interior furnishing level</span>
+        </div>
 
-            </div><!-- end .form-grid -->
+      </div><!-- /.form-grid -->
 
-            <!-- ============================================================
-                 PREDICT BUTTON
-                 When clicked, JavaScript sends data to the API
-            ============================================================ -->
-            <button class="predict-btn" id="predict-btn">
-                <!-- The spinner is hidden by default, shown during loading -->
-                <span class="predict-btn__spinner" id="btn-spinner" aria-hidden="true"></span>
-                <span class="predict-btn__text" id="btn-text">Predict Price</span>
-            </button>
+      <!-- ── Predict button ──────────────────────────────── -->
+      <button class="predict-btn" id="predict-btn">
+        <span class="predict-btn__spinner" id="btn-spinner" aria-hidden="true"></span>
+        <span class="predict-btn__text"   id="btn-text">Predict Price</span>
+      </button>
 
-            <!-- ============================================================
-                 RESULT SECTION
-                 Hidden by default. JavaScript shows this after prediction.
-                 There are two states: success and error
-            ============================================================ -->
+      <!-- ── Result section (hidden until prediction is made) ── -->
+      <!--
+        WHAT CHANGED: Added full result breakdown card below the price.
+        Shows location name + size, BHK, floors, furnishing details.
+        Price is formatted in Indian notation: ₹1,25,00,000
+      -->
+      <div class="result" id="result-section" hidden>
 
-            <!-- SUCCESS RESULT -->
-            <!-- 
-                id="result-section" — JavaScript finds and shows this element
-                class="result" — styled by CSS
-                The "hidden" attribute makes it invisible by default
-            -->
-            <div class="result" id="result-section" hidden>
-                <div class="result__label">Estimated Market Value</div>
-                <!-- 
-                    id="predicted-price" — JavaScript puts the price here
-                    e.g., "$4,850,000"
-                -->
-                <div class="result__price" id="predicted-price">—</div>
-                <div class="result__meta">
-                    Powered by Random Forest · 
-                    <span id="result-meta-text">Trained on historical housing data</span>
-                </div>
-                <div class="result__disclaimer">
-                    ⚠️ This is an ML estimate for educational purposes only.
-                    Actual prices may vary.
-                </div>
-            </div>
+        <div class="result__label">Predicted House Price</div>
 
-            <!-- ERROR MESSAGE -->
-            <!-- Shown when the API returns an error -->
-            <div class="error-msg" id="error-section" hidden>
-                <span class="error-msg__icon">⚠️</span>
-                <span id="error-text">Something went wrong. Please try again.</span>
-            </div>
+        <!-- The big price number — script.js writes here -->
+        <div class="result__price" id="predicted-price">—</div>
 
-        </div><!-- end .card -->
+        <div class="result__meta">
+          Random Forest · Trained on Indore locality data
+        </div>
 
-        <!-- ============================================================
-             INFO SECTION
-             Shows what features the model uses
-        ============================================================ -->
-        <section class="info-strip">
-            <div class="info-strip__item">
-                <span class="info-strip__icon">📊</span>
-                <span>Random Forest Model</span>
-            </div>
-            <div class="info-strip__item">
-                <span class="info-strip__icon">🎯</span>
-                <span>5 Input Features</span>
-            </div>
-            <div class="info-strip__item">
-                <span class="info-strip__icon">🔬</span>
-                <span>MLflow Tracked</span>
-            </div>
-            <div class="info-strip__item">
-                <span class="info-strip__icon">⚡</span>
-                <span>Instant Predictions</span>
-            </div>
-        </section>
+        <!-- Property details breakdown -->
+        <div class="result__details">
+          <div class="result__detail-item">
+            <span class="result__detail-label">📍 Location</span>
+            <span class="result__detail-value" id="res-location">—</span>
+          </div>
+          <div class="result__detail-item">
+            <span class="result__detail-label">📐 Size</span>
+            <span class="result__detail-value" id="res-size">—</span>
+          </div>
+          <div class="result__detail-item">
+            <span class="result__detail-label">🛏️ BHK</span>
+            <span class="result__detail-value" id="res-bhk">—</span>
+          </div>
+          <div class="result__detail-item">
+            <span class="result__detail-label">🏢 Floors</span>
+            <span class="result__detail-value" id="res-floors">—</span>
+          </div>
+          <div class="result__detail-item">
+            <span class="result__detail-label">🛋️ Furnishing</span>
+            <span class="result__detail-value" id="res-furnishing">—</span>
+          </div>
+        </div>
 
-        <footer class="footer">
-            House Price Prediction · MLOps Project · Built with FastAPI + scikit-learn
-        </footer>
+        <div class="result__disclaimer">
+          ⚠️ ML estimate for educational purposes. Actual prices may vary.
+        </div>
 
-    </main><!-- end .page-wrapper -->
+      </div><!-- /#result-section -->
 
-    <!-- 
-        Link to JavaScript file at the BOTTOM of the body.
-        We put it here (not in <head>) so the HTML loads first.
-        If we put it in <head>, the JS might run before the HTML elements exist.
-    -->
-    <script src="/static/script.js"></script>
+      <!-- ── Error message (hidden until an error occurs) ──── -->
+      <div class="error-msg" id="error-section" hidden>
+        <span class="error-msg__icon">⚠️</span>
+        <span id="error-text">Something went wrong. Please try again.</span>
+      </div>
+
+    </div><!-- /.card -->
+
+    <!-- ── Info strip ───────────────────────────────────── -->
+    <section class="info-strip">
+      <div class="info-strip__item"><span>📊</span> Random Forest</div>
+      <div class="info-strip__item"><span>📍</span> 142 Indore Localities</div>
+      <div class="info-strip__item"><span>🔬</span> MLflow Tracked</div>
+      <div class="info-strip__item"><span>⚡</span> Instant Prediction</div>
+    </section>
+
+    <footer class="footer">
+      House Price Prediction · Indore MLOps Project · FastAPI + scikit-learn
+    </footer>
+
+  </main>
+
+  <!--
+    Script is loaded at the END of body so that all HTML elements
+    above exist before JavaScript tries to find them.
+  -->
+  <script src="/static/script.js"></script>
 
 </body>
 </html>

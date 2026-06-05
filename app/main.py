@@ -1,302 +1,401 @@
 # ============================================================
-# app/main.py — This is the FastAPI backend (the server)
+# app/main.py  —  FastAPI backend (updated for new dataset)
 # ============================================================
-# What this file does:
-#   1. Loads the trained ML model from model.pkl
-#   2. Creates API endpoints (URLs) that the frontend can call
-#   3. Receives house feature data from the frontend
-#   4. Passes data to the model to get a price prediction
-#   5. Returns the prediction back to the frontend
 #
-# How to run:
+# WHAT CHANGED FROM THE OLD VERSION:
+#
+#   OLD HouseFeatures model had:
+#       area (float), bedrooms (int), bathrooms (int),
+#       stories (int), parking (int)
+#
+#   NEW HouseFeatures model has:
+#       location (str), size (int), bhk (int),
+#       floors (str), furnishing (str)
+#
+#   OLD prediction used numpy array:
+#       features = np.array([[area, bedrooms, ...]])
+#       model.predict(features)
+#
+#   NEW prediction uses Pandas DataFrame:
+#       df = pd.DataFrame([{...}])
+#       model.predict(df)
+#   → Required because the pipeline's ColumnTransformer
+#     needs column NAMES to know which columns to encode.
+#     A plain numpy array has no column names.
+#
+#   NEW /locations endpoint:
+#       Returns the sorted list of all unique locations
+#       read directly from housing.csv.
+#       The frontend dropdown is populated from this endpoint
+#       automatically — no hardcoding needed.
+#
+# HOW TO RUN:
 #   uvicorn app.main:app --reload
-#
-# After running, open:
-#   http://localhost:8000       → the web frontend
-#   http://localhost:8000/docs  → interactive API documentation
 # ============================================================
 
-# --- IMPORTS ---
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import HTMLResponse
+from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel, Field
+import pandas as pd
+import pickle
+import os
+import logging
 
-from fastapi import FastAPI, Request    # FastAPI: creates the web server and API
-from fastapi.responses import HTMLResponse  # sends HTML pages as responses
-from fastapi.staticfiles import StaticFiles  # serves static files (CSS, JS)
-from fastapi.templating import Jinja2Templates  # serves HTML templates
-from fastapi.middleware.cors import CORSMiddleware  # handles cross-origin requests
-from pydantic import BaseModel, Field   # validates and parses request data
-import pickle                           # loads saved model files
-import numpy as np                     # for array operations
-import os                              # for file path operations
-import logging                         # for logging messages
-
-# Set up logging so we can see what's happening in the console
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# ============================================================
-# STEP 1: CREATE THE FASTAPI APPLICATION
-# ============================================================
+# ── Create FastAPI app ─────────────────────────────────────
 
-# FastAPI() creates the main application object
-# title and description appear in the auto-generated docs at /docs
 app = FastAPI(
-    title="House Price Prediction API",
-    description="Predict house prices using a trained Random Forest model",
-    version="1.0.0"
+    title="House Price Prediction API — Indore",
+    description="Predict house prices across Indore localities using Random Forest",
+    version="2.0.0"
 )
 
-# ============================================================
-# STEP 2: SET UP CORS (Cross-Origin Resource Sharing)
-# ============================================================
-# CORS is a browser security feature.
-# Without this, your browser might block requests from the frontend to the API.
-# By allowing all origins (*), we let any webpage call our API.
-# For production apps, you'd restrict this to specific domains.
+# ── CORS middleware ────────────────────────────────────────
+# Allows the browser frontend to call this API without security blocks.
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],        # Allow all origins (any website can call this API)
+    allow_origins=["*"],
     allow_credentials=True,
-    allow_methods=["*"],        # Allow all HTTP methods (GET, POST, etc.)
-    allow_headers=["*"],        # Allow all headers
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
-# ============================================================
-# STEP 3: SERVE STATIC FILES AND TEMPLATES
-# ============================================================
+# ── Static files and HTML templates ───────────────────────
 
-# Mount the static folder so FastAPI serves CSS and JS files
-# When browser requests /static/style.css, FastAPI serves static/style.css
 app.mount("/static", StaticFiles(directory="static"), name="static")
-
-# Set up Jinja2 templates — this tells FastAPI where HTML files are
-from fastapi.templating import Jinja2Templates
-
 templates = Jinja2Templates(directory="templates")
 
-# ============================================================
-# STEP 4: LOAD THE TRAINED MODEL
-# ============================================================
+# ── Constants — must match train.py exactly ───────────────
 
-# This runs once when the server starts
-# It loads the model from disk into memory
-
+DATA_PATH  = "data/housing.csv"
 MODEL_PATH = "app/model.pkl"
-model = None  # We'll set this below
 
-def load_model():
-    """Load the trained ML model from disk."""
-    global model  # 'global' means we're modifying the variable outside this function
-    
+# The exact column names the pipeline was trained with.
+# Order matters — must match the order used in train.py.
+FEATURE_COLUMNS = ["location", "size", "bhk", "floors", "furnishing"]
+
+# Valid categorical values — used for API validation
+VALID_FLOORS      = {"Ground", "1", "2", "3", "4"}
+VALID_FURNISHINGS = {"Unfurnished", "Semi Furnished", "Furnished"}
+
+# ── Load model on startup ──────────────────────────────────
+
+model        = None
+model_loaded = False
+
+def load_model() -> bool:
+    global model, model_loaded
     if not os.path.exists(MODEL_PATH):
-        logger.error(f"Model file not found at {MODEL_PATH}")
-        logger.error("Please run 'python train.py' first to train the model!")
+        logger.error(f"Model not found at {MODEL_PATH}. Run 'python train.py' first.")
         return False
-    
     try:
-        with open(MODEL_PATH, "rb") as f:  # "rb" = read binary mode
-            model = pickle.load(f)         # Load the model from disk
-        logger.info(f"✅ Model loaded successfully from {MODEL_PATH}")
+        with open(MODEL_PATH, "rb") as f:
+            model = pickle.load(f)
+        model_loaded = True
+        logger.info(f"✅ Model loaded from {MODEL_PATH}")
         return True
     except Exception as e:
-        logger.error(f"❌ Error loading model: {e}")
+        logger.error(f"❌ Failed to load model: {e}")
         return False
 
-# Load the model when the server starts
-model_loaded = load_model()
+load_model()
 
-# ============================================================
-# STEP 5: DEFINE THE DATA MODEL (Pydantic Schema)
-# ============================================================
-# Pydantic is a library that validates data.
-# HouseFeatures defines exactly what data the /predict endpoint expects.
-# If someone sends wrong data types, FastAPI automatically returns an error.
+# ── Load unique locations from CSV ────────────────────────
+# This runs once at startup and builds the sorted list of locations
+# that the /locations endpoint will return to the frontend dropdown.
+
+def load_locations() -> list[str]:
+    if not os.path.exists(DATA_PATH):
+        logger.warning(f"Dataset not found at {DATA_PATH}; location list will be empty.")
+        return []
+    try:
+        df = pd.read_csv(DATA_PATH, usecols=["location"])
+        locs = sorted(df["location"].dropna().unique().tolist())
+        logger.info(f"✅ Loaded {len(locs)} unique locations from {DATA_PATH}")
+        return locs
+    except Exception as e:
+        logger.error(f"❌ Could not load locations: {e}")
+        return []
+
+LOCATIONS: list[str] = load_locations()
+
+# ── Pydantic models ────────────────────────────────────────
+#
+# HouseFeatures defines exactly what JSON the /predict endpoint expects.
+# Pydantic automatically validates types and raises a 422 error with a
+# helpful message if the client sends wrong data.
 
 class HouseFeatures(BaseModel):
-    """
-    This class defines the input data structure for predictions.
-    Each field has a type (float/int) and validation constraints.
-    """
-    area: float = Field(
-        ...,                    # ... means this field is required
-        gt=0,                   # gt = greater than (area must be > 0)
-        description="House area in square feet",
-        example=7420
-    )
-    bedrooms: int = Field(
+    """Input schema for house price prediction."""
+
+    location: str = Field(
         ...,
-        ge=1,                   # ge = greater than or equal to (at least 1 bedroom)
-        le=20,                  # le = less than or equal to (max 20 bedrooms)
-        description="Number of bedrooms",
-        example=4
+        description="Locality name, e.g. 'Vijay Nagar'",
+        example="Vijay Nagar"
     )
-    bathrooms: int = Field(
+    size: int = Field(
+        ...,
+        ge=100,
+        le=10000,
+        description="Plot / house size in square feet",
+        example=1200
+    )
+    bhk: int = Field(
         ...,
         ge=1,
-        le=10,
-        description="Number of bathrooms",
-        example=2
-    )
-    stories: int = Field(
-        ...,
-        ge=1,
-        le=10,
-        description="Number of stories/floors",
+        le=5,
+        description="Number of BHK (bedrooms, hall, kitchen)",
         example=3
     )
-    parking: int = Field(
+    floors: str = Field(
         ...,
-        ge=0,                   # parking can be 0 (no parking)
-        le=10,
-        description="Number of parking spots",
-        example=2
+        description="Floor level: Ground, 1, 2, 3, or 4",
+        example="2"
+    )
+    furnishing: str = Field(
+        ...,
+        description="Furnishing status: Unfurnished, Semi Furnished, or Furnished",
+        example="Semi Furnished"
     )
 
-# Response model — defines what our API sends back
+
 class PredictionResponse(BaseModel):
-    """Defines the structure of the prediction response."""
-    predicted_price: float = Field(description="Predicted house price in USD")
-    currency: str = Field(default="USD", description="Currency of the prediction")
-    model_version: str = Field(description="Name of the model used")
-    formatted_price: str = Field(description="Price formatted with commas and dollar sign")
+    """Response schema returned by /predict."""
+    predicted_price:   float  = Field(description="Predicted price in INR (raw number)")
+    formatted_price:   str    = Field(description="Price in Indian format, e.g. ₹32,50,000")
+    location:          str    = Field(description="Locality name")
+    size:              int    = Field(description="Size in sq ft")
+    bhk:               int    = Field(description="BHK count")
+    floors:            str    = Field(description="Floor level")
+    furnishing:        str    = Field(description="Furnishing status")
+    model_version:     str    = Field(description="Model identifier")
 
-# ============================================================
-# STEP 6: DEFINE API ENDPOINTS (Routes)
-# ============================================================
 
-# --- ENDPOINT 1: Serve the Frontend ---
-# GET / → returns the main HTML page
-# When user opens http://localhost:8000, this function runs
+# ── Helper: Indian currency formatter ─────────────────────
+#
+# Indian numbering groups digits differently from the Western system:
+#   Western : 12,345,678  (groups of 3 from the right)
+#   Indian  :  1,23,45,678  (last 3 digits, then groups of 2)
+#
+# Examples:
+#   3250000  → ₹32,50,000
+#   12500000 → ₹1,25,00,000
+
+def format_inr(amount: float) -> str:
+    amount = int(round(amount))
+    s = str(amount)
+    # Split into last 3 digits and the rest
+    if len(s) <= 3:
+        return f"₹{s}"
+    last3 = s[-3:]
+    rest  = s[:-3]
+    # Group the rest in pairs from the right
+    pairs = []
+    while len(rest) > 2:
+        pairs.append(rest[-2:])
+        rest = rest[:-2]
+    if rest:
+        pairs.append(rest)
+    pairs.reverse()
+    return "₹" + ",".join(pairs) + "," + last3
+
+
+# ── API Endpoints ──────────────────────────────────────────
+
+# ── GET /  →  Serve the HTML frontend ─────────────────────
 
 @app.get("/", response_class=HTMLResponse)
 async def read_root(request: Request):
-    """
-    Serves the main HTML frontend page.
-    
-    'request: Request' is required by Jinja2 templates — it contains
-    information about the HTTP request (headers, client IP, etc.)
-    """
+    """Serve the main web page."""
     return templates.TemplateResponse(
-        request=request,
-        name="index.html"
-    )
+    request=request,
+    name="index.html"
+)
 
 
-# --- ENDPOINT 2: Health Check ---
-# GET /health → tells you if the API is running and model is loaded
+# ── GET /health  →  Health check ──────────────────────────
 
 @app.get("/health")
 async def health_check():
     """
-    Simple health check endpoint.
-    Returns whether the API is running and model is loaded.
-    
+    Returns API status and whether the model is loaded.
+
     Example response:
     {
         "status": "healthy",
         "model_loaded": true,
-        "message": "API is running successfully"
+        "locations_count": 142
     }
     """
     return {
-        "status": "healthy" if model_loaded else "degraded",
-        "model_loaded": model_loaded,
-        "message": "API is running successfully" if model_loaded else "Model not loaded. Run train.py first."
+        "status":          "healthy" if model_loaded else "degraded",
+        "model_loaded":    model_loaded,
+        "locations_count": len(LOCATIONS),
+        "message": (
+            "API ready"
+            if model_loaded
+            else "Model not loaded — run python train.py"
+        )
     }
 
 
-# --- ENDPOINT 3: Predict House Price ---
-# POST /predict → receives house features, returns predicted price
-# This is the main endpoint our frontend calls
+# ── GET /locations  →  Return all unique locations ────────
+#
+# The frontend JavaScript calls this endpoint on page load
+# to populate the Location dropdown automatically.
+# No locations are hardcoded in HTML or JS.
+
+@app.get("/locations")
+async def get_locations():
+    """
+    Returns sorted list of all unique localities from housing.csv.
+
+    Example response:
+    {
+        "locations": ["Anurag Nagar", "Bhicholi Mardana", "Vijay Nagar", ...]
+    }
+    """
+    return {"locations": LOCATIONS}
+
+
+# ── POST /predict  →  Main prediction endpoint ────────────
 
 @app.post("/predict", response_model=PredictionResponse)
 async def predict_price(house: HouseFeatures):
     """
-    Predicts house price based on input features.
-    
-    This endpoint:
-    1. Receives house features as JSON in the request body
-    2. Validates the data (Pydantic does this automatically)
-    3. Creates a numpy array from the features
-    4. Passes it to the trained model
-    5. Returns the predicted price
-    
+    Predicts house price for the given property details.
+
+    KEY DIFFERENCE FROM OLD VERSION:
+    The old version built a numpy array for prediction:
+        features = np.array([[area, bedrooms, bathrooms, stories, parking]])
+        model.predict(features)
+
+    The new version builds a Pandas DataFrame:
+        df = pd.DataFrame([{...}])
+        model.predict(df)
+
+    This is REQUIRED because the ColumnTransformer inside the pipeline
+    needs column names (like "location", "floors") to know which
+    transformer to apply to which column.
+    A numpy array has no column names — it would cause an error.
+
     Example request body:
     {
-        "area": 7420,
-        "bedrooms": 4,
-        "bathrooms": 2,
-        "stories": 3,
-        "parking": 2
+        "location": "Vijay Nagar",
+        "size": 1200,
+        "bhk": 3,
+        "floors": "2",
+        "furnishing": "Semi Furnished"
     }
-    
+
     Example response:
     {
-        "predicted_price": 4850000.0,
-        "currency": "USD",
-        "model_version": "RandomForestRegressor",
-        "formatted_price": "$4,850,000"
+        "predicted_price": 19940000,
+        "formatted_price": "₹1,99,40,000",
+        "location": "Vijay Nagar",
+        ...
     }
     """
-    
-    # Check if model is loaded
-    if model is None:
-        from fastapi import HTTPException
+
+    # Guard: model must be loaded
+    if not model_loaded or model is None:
         raise HTTPException(
-            status_code=503,  # 503 = Service Unavailable
-            detail="Model not loaded. Please run 'python train.py' first."
+            status_code=503,
+            detail="Model not ready. Please run 'python train.py' first."
         )
-    
-    # Log the incoming request (so we can see it in the console)
-    logger.info(f"Prediction request: area={house.area}, bedrooms={house.bedrooms}, "
-                f"bathrooms={house.bathrooms}, stories={house.stories}, parking={house.parking}")
-    
-    # Create a numpy array from the input features
-    # The model expects a 2D array: [[feature1, feature2, feature3, feature4, feature5]]
-    # shape = (1, 5) → 1 sample, 5 features
-    features = np.array([[
-        house.area,
-        house.bedrooms,
-        house.bathrooms,
-        house.stories,
-        house.parking
-    ]])
-    
-    # Get prediction from the model
-    # .predict() returns an array like [4850000.0]
-    # [0] gets the first (and only) element
-    predicted_price = float(model.predict(features)[0])
-    
-    # Format the price nicely (e.g., 4850000 → "$4,850,000")
-    formatted_price = f"${predicted_price:,.0f}"
-    
-    logger.info(f"Predicted price: {formatted_price}")
-    
-    # Return the response
+
+    # Validate categorical values
+    if house.floors not in VALID_FLOORS:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Invalid floor '{house.floors}'. Must be one of: {sorted(VALID_FLOORS)}"
+        )
+    if house.furnishing not in VALID_FURNISHINGS:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Invalid furnishing '{house.furnishing}'. Must be one of: {sorted(VALID_FURNISHINGS)}"
+        )
+
+    logger.info(
+        f"Predict request — location={house.location}, size={house.size}, "
+        f"bhk={house.bhk}, floors={house.floors}, furnishing={house.furnishing}"
+    )
+
+    # ── Build a single-row DataFrame ──────────────────────
+    # Column names must EXACTLY match what the pipeline was trained on.
+    # The order of keys here must match FEATURE_COLUMNS in train.py.
+    input_df = pd.DataFrame([{
+        "location":   house.location,
+        "size":       house.size,
+        "bhk":        house.bhk,
+        "floors":     house.floors,
+        "furnishing": house.furnishing
+    }])
+
+    # ── Get prediction ────────────────────────────────────
+    predicted_price = float(model.predict(input_df)[0])
+    fmt_price       = format_inr(predicted_price)
+
+    logger.info(f"Prediction: {fmt_price} for {house.location}")
+
     return PredictionResponse(
-        predicted_price=predicted_price,
-        currency="USD",
-        model_version="RandomForestRegressor",
-        formatted_price=formatted_price
+        predicted_price = predicted_price,
+        formatted_price = fmt_price,
+        location        = house.location,
+        size            = house.size,
+        bhk             = house.bhk,
+        floors          = house.floors,
+        furnishing      = house.furnishing,
+        model_version   = "RandomForestRegressor-v2"
     )
 
 
-# --- ENDPOINT 4: Get Feature Info ---
-# GET /features → returns info about what features the model accepts
+# ── GET /features  →  Feature metadata ────────────────────
 
 @app.get("/features")
 async def get_feature_info():
     """
-    Returns information about the features the model accepts.
-    Useful for frontend validation.
+    Returns metadata about accepted input features.
+    Useful for frontend validation and documentation.
     """
     return {
         "features": [
-            {"name": "area", "type": "float", "description": "House area in sq ft", "min": 1},
-            {"name": "bedrooms", "type": "int", "description": "Number of bedrooms", "min": 1, "max": 20},
-            {"name": "bathrooms", "type": "int", "description": "Number of bathrooms", "min": 1, "max": 10},
-            {"name": "stories", "type": "int", "description": "Number of floors", "min": 1, "max": 10},
-            {"name": "parking", "type": "int", "description": "Number of parking spots", "min": 0, "max": 10},
+            {
+                "name":        "location",
+                "type":        "categorical (string)",
+                "description": "Indore locality name",
+                "options":     "See /locations endpoint"
+            },
+            {
+                "name":        "size",
+                "type":        "integer",
+                "description": "Plot/house size in square feet",
+                "allowed":     [500, 600, 750, 1000, 1200, 1500]
+            },
+            {
+                "name":        "bhk",
+                "type":        "integer",
+                "description": "BHK count",
+                "allowed":     [1, 2, 3]
+            },
+            {
+                "name":        "floors",
+                "type":        "categorical (string)",
+                "description": "Floor level",
+                "allowed":     ["Ground", "1", "2", "3", "4"]
+            },
+            {
+                "name":        "furnishing",
+                "type":        "categorical (string)",
+                "description": "Furnishing status",
+                "allowed":     ["Unfurnished", "Semi Furnished", "Furnished"]
+            }
         ],
-        "target": "price (USD)"
+        "target": "price (INR)"
     }

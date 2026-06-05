@@ -1,347 +1,325 @@
-🏠 House Price Prediction MLOps Project
-A beginner-friendly MLOps project that predicts house prices using Machine Learning.
-Built with Python, FastAPI, MLflow, Docker, and a modern HTML/CSS/JS frontend.
+🏠 House Price Prediction — Indore MLOps Project (v2)
+Predicts house prices across 142 Indore localities using a Random Forest model
+trained on real locality land rates.
+Built with: Python · scikit-learn · FastAPI · MLflow · Docker · HTML/CSS/JS
 ---
-📚 What This Project Does
+📊 Dataset — `data/housing.csv`
+Column Reference
+Column	Type	Allowed Values	Description
+`location`	string	142 Indore localities	Locality / area name
+`size`	integer	500, 600, 750, 1000, 1200, 1500	Plot size in square feet
+`bhk`	integer	1, 2, 3	Bedrooms + Hall + Kitchen
+`floors`	string	Ground, 1, 2, 3, 4	Number of floors built above ground
+`furnishing`	string	Unfurnished, Semi Furnished, Furnished	Interior furnishing level
+`price`	integer	—	House price in INR (target variable)
+Sample rows
 ```
-User enters house details (area, bedrooms, etc.)
-         ↓
-Beautiful web frontend (HTML/CSS/JS)
-         ↓
-FastAPI backend receives the data
-         ↓
-Trained ML model predicts the price
-         ↓
-Price is sent back and displayed on screen
+location,size,bhk,floors,furnishing,price
+Vijay Nagar,1200,3,2,Semi Furnished,19940000
+Nipania,1000,2,Ground,Unfurnished,8748000
+Sukhliya,1500,3,4,Furnished,56430000
 ```
+Price formula used to generate the dataset
+```
+Land Cost        = size × locality rate per sq ft
+Built-up Area    = size × floor multiplier
+                   (Ground=1, 1=2, 2=3, 3=4, 4=5)
+Construction Cost= built-up area × furnishing rate
+                   (Unfurnished=1500, Semi=2000, Furnished=3200)
+Total            = Land Cost + Construction Cost
+BHK premium      = ×1.00 / ×1.05 / ×1.10  (1/2/3 BHK)
+Final Price      = Total × BHK premium  (rounded to ₹10,000)
+```
+BHK constraints
+Size (sq ft)	Allowed BHK
+500, 600	1 only
+750	1 or 2
+1000	1, 2, or 3
+1200, 1500	2 or 3
 ---
-🗂️ Complete Folder Structure
+🗂️ Project Structure
 ```
 house-price-mlops/
 │
 ├── app/
-│   ├── main.py          ← FastAPI backend (the server)
-│   └── model.pkl        ← Trained ML model (created after training)
+│   ├── __init__.py      ← Makes app/ a Python package
+│   ├── main.py          ← FastAPI server (all API endpoints)
+│   └── model.pkl        ← Trained pipeline (created by train.py)
 │
 ├── templates/
-│   └── index.html       ← Web page (what users see)
+│   └── index.html       ← Web frontend (served by FastAPI)
 │
 ├── static/
-│   ├── style.css        ← Visual styling of the page
-│   └── script.js        ← JavaScript logic (sends data to API)
+│   ├── style.css        ← Dark luxury UI styling
+│   └── script.js        ← JavaScript (fetch API, dropdown, INR format)
 │
 ├── data/
-│   └── housing.csv      ← Dataset (download instructions below)
+│   └── housing.csv      ← Indore locality dataset (4,544 rows)
 │
-├── train.py             ← Script to train the ML model
-├── requirements.txt     ← List of Python packages to install
-├── Dockerfile           ← Instructions to run app in Docker
-└── README.md            ← This file!
+├── train.py             ← Model training script
+├── requirements.txt     ← Python dependencies
+├── Dockerfile           ← Docker container definition
+└── README.md
 ```
 ---
-💻 Step 1: Install Required Software (Windows 11)
-1.1 Install Python
-Go to: https://www.python.org/downloads/
-Click Download Python 3.11.x (latest 3.11 version)
-Run the installer
-⚠️ IMPORTANT: Check the box that says "Add Python to PATH" before clicking Install
-Click Install Now
-Verify Python installed:
-Open Command Prompt (press `Win + R`, type `cmd`, press Enter) and run:
-```
-python --version
-```
-You should see: `Python 3.11.x`
+💻 Setup — Windows 11
+Required software
+Software	Download	Verify with
+Python 3.11	https://python.org/downloads	`python --version`
+VS Code	https://code.visualstudio.com	—
+Git	https://git-scm.com/download/win	`git --version`
+Docker Desktop	https://docker.com/products/docker-desktop	`docker --version`
+> ⚠️ When installing Python, check **"Add Python to PATH"** before clicking Install.
 ---
-1.2 Install VS Code
-Go to: https://code.visualstudio.com/
-Download and install it
-Open VS Code and install the Python extension (click the blocks icon on the left sidebar, search "Python", install the one by Microsoft)
----
-1.3 Install Git
-Go to: https://git-scm.com/download/win
-Download and run the installer (click Next through all options)
-Verify Git installed:
-```
-git --version
-```
-You should see: `git version 2.x.x`
----
-1.4 Install Docker Desktop (Optional but Recommended)
-Go to: https://www.docker.com/products/docker-desktop/
-Download Docker Desktop for Windows
-Run the installer, follow instructions
-Restart your computer when asked
-Verify Docker installed:
-```
-docker --version
-```
-You should see: `Docker version 24.x.x`
----
-📁 Step 2: Get the Dataset
-We will use the Housing Prices Dataset — it's simple, beginner-friendly, and free.
-Download Instructions:
-Go to: https://www.kaggle.com/datasets/yasserh/housing-prices-dataset
-Click Download (you need a free Kaggle account)
-Extract the ZIP file
-Find the file named `Housing.csv`
-Rename it to `housing.csv` (lowercase)
-Place it inside the `data/` folder of your project
-What's in this dataset?
-The dataset has these columns:
-Column	What it means
-`area`	Size of the house in square feet
-`bedrooms`	Number of bedrooms
-`bathrooms`	Number of bathrooms
-`stories`	Number of floors
-`parking`	Number of parking spots
-`price`	House price in dollars (this is what we predict!)
----
-🛠️ Step 3: Set Up the Project
-3.1 Create the Project Folder
-Open Command Prompt and run these commands one by one:
+Step 1 — Create project folder
 ```cmd
 cd Desktop
 mkdir house-price-mlops
 cd house-price-mlops
 ```
-3.2 Create the Subfolder Structure
+Step 2 — Create subfolder structure
 ```cmd
-mkdir app
-mkdir templates
-mkdir static
-mkdir data
+mkdir app templates static data
 ```
-Now copy all the files from this project into the correct folders.
-3.3 Create a Virtual Environment
-A virtual environment is like a clean room just for your project — it keeps packages separate.
+Step 3 — Place files
+Copy all project files into the correct folders.
+Place `housing.csv` inside the `data/` folder.
+Step 4 — Create and activate virtual environment
 ```cmd
 python -m venv venv
-```
-3.4 Activate the Virtual Environment
-```cmd
 venv\Scripts\activate
 ```
-You'll see `(venv)` appear at the start of the command line. This means the virtual environment is active.
-> 💡 Every time you open a new terminal to work on this project, run this activate command first!
-3.5 Install Dependencies
+You will see `(venv)` at the start of the command line.
+> 💡 Run `venv\Scripts\activate` every time you open a new terminal.
+Step 5 — Install dependencies
 ```cmd
 pip install -r requirements.txt
 ```
-This installs all required Python packages. It might take a few minutes.
 ---
-🤖 Step 4: Train the ML Model
+🤖 Training the Model
 ```cmd
 python train.py
 ```
-What happens when you run this:
-Python reads `data/housing.csv`
-It separates the features (area, bedrooms, etc.) from the target (price)
-It splits data into training set (80%) and test set (20%)
-It trains a Random Forest Regressor model
-It saves the trained model as `app/model.pkl`
-MLflow records all the experiment details
+What train.py does step by step:
+Reads `data/housing.csv`
+Splits columns:
+Features: `location, size, bhk, floors, furnishing`
+Target: `price`
+Builds a `Pipeline`:
+```
+   ColumnTransformer
+     ├── OneHotEncoder → location, floors, furnishing
+     └── passthrough   → size, bhk
+   ↓
+   RandomForestRegressor (100 trees, max_depth=15)
+   ```
+Trains on 80% of data, evaluates on 20%
+Logs R², RMSE, MAE to MLflow
+Saves trained pipeline as `app/model.pkl`
+Why OneHotEncoder?
+Columns like `location` ("Vijay Nagar") and `floors` ("Ground") are text.
+ML models need numbers. OneHotEncoder converts each category into a binary
+(0 or 1) column. For example:
+```
+floors = "Ground" → [1, 0, 0, 0, 0]
+floors = "1"      → [0, 1, 0, 0, 0]
+floors = "2"      → [0, 0, 1, 0, 0]
+```
 Expected output:
 ```
-Loading dataset...
-Training model...
-Model trained successfully!
-R² Score: 0.65
-RMSE: 1200000
-Model saved to app/model.pkl
-MLflow run ID: abc123...
+TRAINING COMPLETE
+  R²   : 0.9800+
+  RMSE : ₹X,XX,XXX
+  Model: app/model.pkl
 ```
 ---
-📊 Step 5: View MLflow Dashboard
-MLflow tracks your ML experiments — it logs metrics, parameters, and model versions.
+📊 View MLflow Dashboard
 ```cmd
 mlflow ui
 ```
-Then open your browser and go to: http://localhost:5000
-You'll see your training run with:
-Model name
-R² Score (how accurate the model is)
-RMSE (average prediction error)
-> Press `Ctrl+C` in the terminal to stop MLflow when done
+Open browser → http://localhost:5000
+You will see your training run with R², RMSE, MAE metrics.
+Press `Ctrl+C` to stop MLflow.
 ---
-🚀 Step 6: Run the FastAPI Server
+🚀 Run the FastAPI Server
 ```cmd
 uvicorn app.main:app --reload
 ```
-What this command means:
-`uvicorn` — the web server
-`app.main:app` — look in the `app` folder, in `main.py`, find the variable named `app`
-`--reload` — automatically restart when you change code
-Open your browser and go to: http://localhost:8000
-You'll see the House Price Prediction web page! 🎉
+Open browser → http://localhost:8000
 ---
-🧪 Step 7: Testing
-7.1 Test via Browser
+🧪 Testing
+Via Browser
 Open http://localhost:8000
-Enter house details
-Click "Predict Price"
-See the result!
-7.2 Test via Swagger UI (FastAPI's built-in testing tool)
+Select a locality from the dropdown
+Enter Size, BHK, Floors, Furnishing
+Click Predict Price
+See the predicted price in Indian Rupee format
+Via Swagger UI (FastAPI's built-in docs)
 Open http://localhost:8000/docs
-Click on `POST /predict`
-Click "Try it out"
-Enter this JSON:
+Click `POST /predict` → Try it out
+Enter:
 ```json
 {
-  "area": 7420,
-  "bedrooms": 4,
-  "bathrooms": 2,
-  "stories": 3,
-  "parking": 2
+  "location": "Vijay Nagar",
+  "size": 1200,
+  "bhk": 3,
+  "floors": "2",
+  "furnishing": "Semi Furnished"
 }
 ```
-Click "Execute"
-See the predicted price in the response
-7.3 Test via Postman
-Download Postman from https://www.postman.com/downloads/
-Create a new request
-Set method to POST
+Click Execute
+Expected response:
+```json
+{
+  "predicted_price": 19940000.0,
+  "formatted_price": "₹1,99,40,000",
+  "location": "Vijay Nagar",
+  "size": 1200,
+  "bhk": 3,
+  "floors": "2",
+  "furnishing": "Semi Furnished",
+  "model_version": "RandomForestRegressor-v2"
+}
+```
+Via Postman
+Method: `POST`
 URL: `http://localhost:8000/predict`
-Go to Body tab → select raw → choose JSON
-Paste:
+Body → raw → JSON:
 ```json
 {
-  "area": 7420,
-  "bedrooms": 4,
-  "bathrooms": 2,
-  "stories": 3,
-  "parking": 2
+  "location": "Nipania",
+  "size": 1000,
+  "bhk": 2,
+  "floors": "Ground",
+  "furnishing": "Unfurnished"
 }
-```
-Click Send
-Expected Response:
-```json
-{
-  "predicted_price": 4850000.0,
-  "currency": "USD",
-  "model_version": "RandomForestRegressor"
-}
-```
----
-🐳 Step 8: Run with Docker
-Docker packages your entire app into a container that runs the same on any computer.
-Build the Docker image:
-```cmd
-docker build -t house-price-mlops .
-```
-Run the container:
-```cmd
-docker run -p 8000:8000 house-price-mlops
-```
-Open browser: http://localhost:8000
-Stop the container:
-Press `Ctrl+C` or run:
-```cmd
-docker stop $(docker ps -q)
-```
----
-❌ Common Errors and Fixes
-Error: `ModuleNotFoundError: No module named 'fastapi'`
-Fix: Make sure your virtual environment is activated:
-```cmd
-venv\Scripts\activate
-pip install -r requirements.txt
-```
-Error: `FileNotFoundError: app/model.pkl not found`
-Fix: You need to train the model first:
-```cmd
-python train.py
-```
-Error: `FileNotFoundError: data/housing.csv not found`
-Fix: Download the dataset and place it in the `data/` folder. See Step 2 above.
-Error: `Port 8000 already in use`
-Fix: Another program is using port 8000. Either stop it or use a different port:
-```cmd
-uvicorn app.main:app --reload --port 8001
-```
-Error: `CORS error` in browser console
-Fix: This is already handled in `app/main.py` with `CORSMiddleware`.
-Error: `uvicorn is not recognized`
-Fix: Install it:
-```cmd
-pip install uvicorn
 ```
 ---
 📡 API Reference
 `GET /`
-Returns the HTML frontend page.
-`POST /predict`
-Predicts house price.
-Request body:
-```json
-{
-  "area": 7420,
-  "bedrooms": 4,
-  "bathrooms": 2,
-  "stories": 3,
-  "parking": 2
-}
-```
-Response:
-```json
-{
-  "predicted_price": 4850000.0,
-  "currency": "USD",
-  "model_version": "RandomForestRegressor"
-}
-```
+Serves the HTML frontend.
 `GET /health`
-Check if the API is running.
-Response:
 ```json
 {
   "status": "healthy",
-  "model_loaded": true
+  "model_loaded": true,
+  "locations_count": 142
 }
 ```
----
-🔄 Complete Data Flow Explained
+`GET /locations`
+Returns all unique locality names (used to populate the frontend dropdown).
+```json
+{
+  "locations": ["Amli Kheda", "Anurag Nagar", "Arandia", "...", "Vijay Nagar"]
+}
 ```
-1. User opens http://localhost:8000 in browser
-   → FastAPI serves index.html from templates/
+`POST /predict`
+Request:
+```json
+{
+  "location": "Vijay Nagar",
+  "size": 1200,
+  "bhk": 3,
+  "floors": "2",
+  "furnishing": "Semi Furnished"
+}
+```
+Response:
+```json
+{
+  "predicted_price": 19940000.0,
+  "formatted_price": "₹1,99,40,000",
+  "location": "Vijay Nagar",
+  "size": 1200,
+  "bhk": 3,
+  "floors": "2",
+  "furnishing": "Semi Furnished",
+  "model_version": "RandomForestRegressor-v2"
+}
+```
+`GET /features`
+Returns metadata about accepted features and their valid values.
+---
+🐳 Docker
+Build image (make sure `data/housing.csv` exists first):
+```cmd
+docker build -t house-price-mlops .
+```
+Run container:
+```cmd
+docker run -p 8000:8000 house-price-mlops
+```
+Open browser → http://localhost:8000
+---
+🔄 Complete Data Flow
+```
+1. Browser opens http://localhost:8000
+   → FastAPI serves templates/index.html
 
-2. User fills in: area=7420, bedrooms=4, bathrooms=2, stories=3, parking=2
-   → HTML form collects these values
+2. Page loads → script.js calls GET /locations
+   → main.py reads housing.csv → returns 142 locality names
+   → script.js fills the Location <select> dropdown
 
-3. User clicks "Predict Price"
-   → script.js runs and collects all values
+3. User selects: Vijay Nagar, 1200 sq ft, 3 BHK, 2 floors, Semi Furnished
 
-4. script.js sends a POST request to http://localhost:8000/predict
-   → Request body: {"area": 7420, "bedrooms": 4, ...}
+4. User clicks "Predict Price"
+   → script.js validates all 5 fields
+   → fetch POST /predict with JSON body
 
-5. FastAPI receives the request in main.py
-   → It validates the input using Pydantic
+5. FastAPI (main.py) receives request
+   → Pydantic validates types and values
+   → builds pd.DataFrame([{ location, size, bhk, floors, furnishing }])
 
-6. FastAPI loads the trained model from app/model.pkl
-   → model.pkl was created by train.py
+6. pipeline.predict(df) runs:
+   a. ColumnTransformer:
+      - OneHotEncoder: location → 142 binary columns
+                       floors   → 5 binary columns
+                       furnishing → 3 binary columns
+      - passthrough:   size, bhk → kept as numbers
+   b. RandomForestRegressor: 100 trees vote → price prediction
 
-7. The Random Forest model predicts the price
-   → It uses the 5 features to calculate price
+7. main.py formats ₹19,94,0000 as "₹1,99,40,000"
+   → returns PredictionResponse JSON
 
-8. FastAPI sends back the response
-   → {"predicted_price": 4850000.0, ...}
-
-9. script.js receives the response
-   → It updates the webpage to show the price
-
-10. User sees: "Predicted Price: $4,850,000"
+8. script.js receives response
+   → animates price counter from ₹0 to ₹1,99,40,000
+   → fills in location + details breakdown
+   → User sees the result card
 ```
 ---
-🎓 Key Concepts Explained Simply
-What is an API?
-An API is like a waiter in a restaurant. You (frontend) give your order to the waiter (API), the waiter takes it to the kitchen (ML model), and brings back your food (prediction).
-What is FastAPI?
-A Python tool that makes it easy to create APIs. It also automatically creates documentation at `/docs`.
-What is MLflow?
-A tool that tracks your ML experiments. It remembers what parameters you used, what your model's accuracy was, and saves different versions of your model.
-What is Docker?
-Docker packages your entire app (code + dependencies) into a box called a "container". This box runs the same on any computer, so you never have "it works on my machine" problems.
-What is a Virtual Environment?
-A separate Python installation just for your project. It prevents conflicts between different projects that need different package versions.
-What is Random Forest?
-An ML algorithm that creates many decision trees and averages their predictions. It's like asking 100 experts and taking the average answer.
+❌ Common Errors
+`FileNotFoundError: app/model.pkl`
+Run training first:
+```cmd
+python train.py
+```
+`FileNotFoundError: data/housing.csv`
+Place `housing.csv` in the `data/` folder.
+`ModuleNotFoundError: No module named 'fastapi'`
+Activate virtual environment and install:
+```cmd
+venv\Scripts\activate
+pip install -r requirements.txt
+```
+`Port 8000 already in use`
+Use a different port:
+```cmd
+uvicorn app.main:app --reload --port 8001
+```
+Location dropdown shows "Could not load localities"
+The FastAPI server is not running. Start it first:
+```cmd
+uvicorn app.main:app --reload
+```
+---
+🎓 Key Concepts
+ColumnTransformer — Applies different preprocessing to different columns.
+OneHotEncoder to text columns, passthrough to number columns.
+OneHotEncoder — Converts text categories to binary columns.
+`"Vijay Nagar"` becomes a row of 0s with a single 1.
+Pipeline — Chains preprocessing + model into one object.
+When you call `pipeline.predict(df)`, it runs encoding first, then prediction.
+This is why we use `pd.DataFrame` not a numpy array — the encoder needs column names.
+Indian number formatting — ₹1,99,40,000 means 1 crore 99 lakh 40 thousand.
+Groups: last 3 digits, then groups of 2 from the right.
+MLflow — Records every training run. Compare R² and RMSE across runs at http://localhost:5000.
