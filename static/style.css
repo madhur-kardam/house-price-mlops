@@ -220,7 +220,7 @@ body {
   color: var(--text-primary);
   outline: none;
   transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.15s ease;
-  -moz-appearance: textfield;
+  -ms-progress-appearance: textfield;
 }
 .field__input::placeholder { color: var(--text-muted); font-weight: 400; }
 .field__input::-webkit-outer-spin-button,
